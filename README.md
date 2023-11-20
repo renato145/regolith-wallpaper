@@ -23,3 +23,10 @@ sudo pacman -S lld clang
 ```bash
 brew install michaeleisel/zld/zld
 ```
+
+## Usage
+
+### Nvidia hybrid graphics
+
+When using nvidia hybrid graphics you may need to run the program with the env
+variable `__NV_PRIME_RENDER_OFFLOAD=1` to be able to se images.

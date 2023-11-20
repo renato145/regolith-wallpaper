@@ -2,13 +2,12 @@ use iced::executor;
 use iced::widget::{column, container, image, text};
 use iced::{Application, Command, Element, Settings, Theme};
 use std::fs;
+use std::path::PathBuf;
 use tracing_subscriber::fmt;
 
 fn main() -> iced::Result {
     fmt::init();
-    tracing::info!("Started");
     RegolithWallpaperApp::run(Settings::default())?;
-    tracing::info!("Finished");
     Ok(())
 }
 
@@ -36,18 +35,28 @@ impl Application for RegolithWallpaperApp {
         let body = text("Hello there (:");
         let sample_pic = {
             let bytes = fs::read(
-                "/home/renato/Dropbox/variety-favorites/OHR.MaasaiGiraffe_EN-US4914727610_1920x1080.jpg",
+                "/home/renato/Dropbox/variety-favorites/OHR.MaasaiGiraffe_EN-US4914727610_1920x1080.jpg"
             )
             .expect("Failed to read image.");
             let image_data = image::Handle::from_memory(bytes);
-            tracing::info!("About to get handle");
+            tracing::warn!("{:?}", image_data.data());
             image::viewer(image_data)
         };
-        tracing::info!("Finished to get handle");
         container(column!(body, sample_pic)).padding(10).into()
     }
 
     fn theme(&self) -> Self::Theme {
         Theme::Dark
+    }
+}
+
+/// Paths from which to load wallpaper images
+struct WallpaperPaths {
+    path: Option<PathBuf>,
+}
+
+impl WallpaperPaths {
+    fn load() -> Self {
+        Self { path: None }
     }
 }
