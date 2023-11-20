@@ -1,5 +1,7 @@
 use iced::executor;
+use iced::widget::{column, container, image, text};
 use iced::{Application, Command, Element, Settings, Theme};
+use std::fs;
 use tracing_subscriber::fmt;
 
 fn main() -> iced::Result {
@@ -31,7 +33,18 @@ impl Application for RegolithWallpaperApp {
     }
 
     fn view(&self) -> Element<Self::Message> {
-        "Hello, world!".into()
+        let body = text("Hello there (:");
+        let sample_pic = {
+            let bytes = fs::read(
+                "/home/renato/Dropbox/variety-favorites/OHR.MaasaiGiraffe_EN-US4914727610_1920x1080.jpg",
+            )
+            .expect("Failed to read image.");
+            let image_data = image::Handle::from_memory(bytes);
+            tracing::info!("About to get handle");
+            image::viewer(image_data)
+        };
+        tracing::info!("Finished to get handle");
+        container(column!(body, sample_pic)).padding(10).into()
     }
 
     fn theme(&self) -> Self::Theme {
