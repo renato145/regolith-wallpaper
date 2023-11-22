@@ -1,16 +1,17 @@
 use crate::{WallpaperPath, WallpaperPathMessage};
 use iced::font::Weight;
-use iced::widget::{column, container, text, vertical_space};
-use iced::{executor, Font};
+use iced::widget::{self, column, container, text, vertical_space};
+use iced::{event, executor, keyboard, Event, Font, Subscription};
 use iced::{Application, Command, Element, Theme};
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    Event(Event),
     WallpaperPathMessage(WallpaperPathMessage),
 }
 
 pub struct RegolithWallpaperApp {
-    wallpaper_paths: WallpaperPath,
+    wallpaper_path: WallpaperPath,
 }
 
 impl Application for RegolithWallpaperApp {
@@ -20,21 +21,39 @@ impl Application for RegolithWallpaperApp {
     type Theme = Theme;
 
     fn new(_flags: ()) -> (RegolithWallpaperApp, Command<Self::Message>) {
-        (
-            RegolithWallpaperApp {
-                wallpaper_paths: WallpaperPath::new(),
-            },
-            Command::none(),
-        )
+        let wallpaper_path = WallpaperPath::new();
+        let cmd = if wallpaper_path.path.is_some() {
+            Command::none()
+        } else {
+            wallpaper_path.focus_input()
+        };
+        (RegolithWallpaperApp { wallpaper_path }, cmd)
     }
 
     fn title(&self) -> String {
         String::from("regolith-wallpaper")
     }
 
+    fn subscription(&self) -> Subscription<Self::Message> {
+        event::listen().map(Message::Event)
+    }
+
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
-            Message::WallpaperPathMessage(msg) => self.wallpaper_paths.update(msg),
+            Message::WallpaperPathMessage(msg) => self.wallpaper_path.update(msg),
+            Message::Event(event) => match event {
+                Event::Keyboard(keyboard::Event::KeyPressed {
+                    key_code: keyboard::KeyCode::Tab,
+                    modifiers,
+                }) => {
+                    if modifiers.shift() {
+                        widget::focus_previous()
+                    } else {
+                        widget::focus_next()
+                    }
+                }
+                _ => Command::none(),
+            },
         }
     }
 
@@ -44,7 +63,7 @@ impl Application for RegolithWallpaperApp {
             ..Default::default()
         });
         let wallpaper_paths = self
-            .wallpaper_paths
+            .wallpaper_path
             .view()
             .map(Message::WallpaperPathMessage);
 

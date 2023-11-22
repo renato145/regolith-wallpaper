@@ -15,9 +15,10 @@ pub enum WallpaperPathMessage {
 
 /// Paths from which to load wallpaper images
 pub struct WallpaperPath {
-    input: String,
-    path: Option<PathBuf>,
-    status_bar: StatusBar,
+    pub input: String,
+    pub path: Option<PathBuf>,
+    pub status_bar: StatusBar,
+    pub input_id: text_input::Id,
 }
 
 impl Default for WallpaperPath {
@@ -32,7 +33,12 @@ impl WallpaperPath {
             input: String::new(),
             path: None,
             status_bar: StatusBar::None,
+            input_id: text_input::Id::unique(),
         }
+    }
+
+    pub fn focus_input(&self) -> Command<Message> {
+        text_input::focus(self.input_id.clone())
     }
 
     pub fn update(&mut self, message: WallpaperPathMessage) -> Command<Message> {
@@ -68,6 +74,7 @@ impl WallpaperPath {
     pub fn view(&self) -> Element<WallpaperPathMessage> {
         let label = text("Wallpapers folder path:").size(16);
         let input = text_input("Enter folder path...", &self.input)
+            .id(self.input_id.clone())
             .on_input(WallpaperPathMessage::InputEdit);
 
         let button_ok = button(container(text("Ok").size(16)).width(100).center_x())
