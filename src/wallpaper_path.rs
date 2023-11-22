@@ -67,7 +67,6 @@ impl WallpaperPath {
 
     pub fn view(&self) -> Element<WallpaperPathMessage> {
         let label = text("Wallpapers folder path:").size(16);
-
         let input = text_input("Enter folder path...", &self.input)
             .on_input(WallpaperPathMessage::InputEdit);
 
