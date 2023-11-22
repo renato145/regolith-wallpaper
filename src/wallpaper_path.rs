@@ -50,19 +50,22 @@ impl WallpaperPath {
                 );
                 let path = PathBuf::from(&input);
                 if path.exists() {
-                    let msg = Message::UpdateStatusBar(Ok(format!("Path setted to {:?}", path)));
+                    let msg =
+                        Message::WallpaperPathSetted(Ok(format!("Path setted to {:?}", path)));
                     self.input = path.to_str().unwrap().to_string();
                     self.path = Some(path);
                     Some(msg)
                 } else {
-                    Some(Message::UpdateStatusBar(Err(Error::InvalidPath(path))))
+                    Some(Message::WallpaperPathSetted(Err(Error::InvalidPath(path))))
                 }
             }
             WallpaperPathMessage::Cancel => {
                 if let Some(path) = &self.path {
                     self.input = path.to_str().unwrap().to_string();
+                    Some(Message::WallpaperPathHide)
+                } else {
+                    None
                 }
-                None
             }
         }
     }

@@ -1,6 +1,6 @@
 use crate::{Error, StatusBar, WallpaperPath, WallpaperPathMessage};
 use iced::font::Weight;
-use iced::widget::{self, column, container, text, vertical_space};
+use iced::widget::{self, button, column, container, text, vertical_space};
 use iced::{event, executor, keyboard, Event, Font, Length, Subscription};
 use iced::{Application, Command, Element, Theme};
 
@@ -8,11 +8,14 @@ use iced::{Application, Command, Element, Theme};
 pub enum Message {
     Event(Event),
     WallpaperPathMessage(WallpaperPathMessage),
+    WallpaperPathSetted(Result<String, Error>),
+    WallpaperPathHide,
     UpdateStatusBar(Result<String, Error>),
 }
 
 pub struct RegolithWallpaperApp {
     wallpaper_path: WallpaperPath,
+    wallpaper_path_show: bool,
     status_bar: StatusBar,
 }
 
@@ -24,14 +27,15 @@ impl Application for RegolithWallpaperApp {
 
     fn new(_flags: ()) -> (RegolithWallpaperApp, Command<Self::Message>) {
         let wallpaper_path = WallpaperPath::new();
-        let cmd = if wallpaper_path.path.is_some() {
-            Command::none()
+        let (wallpaper_path_show, cmd) = if wallpaper_path.path.is_some() {
+            (false, Command::none())
         } else {
-            wallpaper_path.focus_input()
+            (true, wallpaper_path.focus_input())
         };
         (
             RegolithWallpaperApp {
                 wallpaper_path,
+                wallpaper_path_show,
                 status_bar: StatusBar::None,
             },
             cmd,
@@ -48,10 +52,6 @@ impl Application for RegolithWallpaperApp {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
-            Message::WallpaperPathMessage(msg) => match self.wallpaper_path.update(msg) {
-                Some(msg) => self.update(msg),
-                None => Command::none(),
-            },
             Message::Event(event) => match event {
                 Event::Keyboard(keyboard::Event::KeyPressed {
                     key_code: keyboard::KeyCode::Tab,
@@ -65,6 +65,20 @@ impl Application for RegolithWallpaperApp {
                 }
                 _ => Command::none(),
             },
+            Message::WallpaperPathMessage(msg) => match self.wallpaper_path.update(msg) {
+                Some(msg) => self.update(msg),
+                None => Command::none(),
+            },
+            Message::WallpaperPathSetted(msg) => {
+                if msg.is_ok() {
+                    self.wallpaper_path_show = false;
+                }
+                self.update(Message::UpdateStatusBar(msg))
+            }
+            Message::WallpaperPathHide => {
+                self.wallpaper_path_show = false;
+                Command::none()
+            }
             Message::UpdateStatusBar(result) => {
                 match result {
                     Ok(success) => self.status_bar = StatusBar::Ok(success),
@@ -80,19 +94,28 @@ impl Application for RegolithWallpaperApp {
             weight: Weight::Bold,
             ..Default::default()
         });
-        let wallpaper_paths = self
-            .wallpaper_path
-            .view()
-            .map(Message::WallpaperPathMessage);
-        let status_bar = self.status_bar.view();
 
-        container(column!(
-            column!(title, vertical_space(10), wallpaper_paths,)
-                .spacing(10)
-                .padding(20),
+        let mut content = column!(title, vertical_space(10)).spacing(10).padding(20);
+
+        if self.wallpaper_path_show {
+            let wallpaper_path = self
+                .wallpaper_path
+                .view()
+                .map(Message::WallpaperPathMessage);
+            content = content.push(wallpaper_path);
+        } else {
+            let edit_path_btn = button(container(text("Ok").size(16)).width(100).center_x())
+            .padding(10)
+            // .on_press(WallpaperPathMessage::Ok)
+            ;
+            content = content.push(edit_path_btn);
+        }
+
+        column!(
+            content,
             vertical_space(Length::Fill),
-            status_bar
-        ))
+            self.status_bar.view()
+        )
         .into()
     }
 
