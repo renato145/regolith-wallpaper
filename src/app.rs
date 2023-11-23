@@ -1,7 +1,7 @@
-use crate::{Error, Result, StatusBar, WallpaperPath, WallpaperPathMessage};
+use crate::{Error, Result, StatusBar, WallpaperImage, WallpaperPath, WallpaperPathMessage};
 use futures::StreamExt;
 use iced::font::Weight;
-use iced::widget::{self, button, column, container, image, text, vertical_space, Row, Image};
+use iced::widget::{self, button, column, container, text, vertical_space, Row};
 use iced::{event, executor, keyboard, Event, Font, Length, Subscription};
 use iced::{Application, Command, Element, Theme};
 use std::path::PathBuf;
@@ -24,7 +24,7 @@ pub enum Message {
 pub struct RegolithWallpaperApp {
     wallpaper_path: WallpaperPath,
     wallpaper_path_show: bool,
-    images: Vec<PathBuf>,
+    images: Vec<WallpaperImage>,
     status_bar: StatusBar,
 }
 
@@ -103,7 +103,11 @@ impl Application for RegolithWallpaperApp {
                 }
             }
             Message::LoadedPaths(Ok(paths)) => {
-                self.images = paths;
+                self.images = paths
+                    .into_iter()
+                    .take(10)
+                    .map(WallpaperImage::from_path)
+                    .collect();
                 Command::none()
             }
             Message::LoadedPaths(Err(e)) => {
@@ -141,20 +145,18 @@ impl Application for RegolithWallpaperApp {
                     show: true,
                     msg: None,
                 });
+            content = content.push(edit_path_btn);
+        }
+
+        if !self.images.is_empty() {
             let images = Row::with_children(
                 self.images
                     .iter()
-                    .take(10)
-                    .map(|image| text(format!("{:?}", image)).into())
+                    .map(|image| image.view())
                     .collect::<Vec<_>>(),
-            );
-            content = content.push(edit_path_btn).push(images);
-            if let Some(path) = self.images.first() {
-                let handle = image::Handle::from_path(path);
-                // let image = image::viewer(handle);
-                let image = Image::new(handle);
-                content = content.push(image);
-            }
+            )
+            .spacing(20);
+            content = content.push(images);
         }
 
         column!(
@@ -170,7 +172,9 @@ impl Application for RegolithWallpaperApp {
     }
 }
 
+#[tracing::instrument]
 async fn load_image_files(path: PathBuf) -> Result<Vec<PathBuf>> {
+    tracing::info!("Loading files...");
     let image_files = ReadDirStream::new(
         read_dir(path)
             .await
@@ -184,5 +188,6 @@ async fn load_image_files(path: PathBuf) -> Result<Vec<PathBuf>> {
     })
     .collect::<Vec<_>>()
     .await;
+    tracing::info!("Files loaded...");
     Ok(image_files)
 }
