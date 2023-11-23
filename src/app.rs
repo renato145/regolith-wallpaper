@@ -12,6 +12,7 @@ pub enum Message {
         show: bool,
         msg: Option<Result<String>>,
     },
+    WallpaperPathSetted,
     UpdateStatusBar(Result<String>),
 }
 
@@ -75,6 +76,17 @@ impl Application for RegolithWallpaperApp {
                 self.wallpaper_path_show = show;
                 if let Some(msg) = msg {
                     self.update(Message::UpdateStatusBar(msg))
+                } else {
+                    Command::none()
+                }
+            }
+            Message::WallpaperPathSetted => {
+                if let Some(path) = &self.wallpaper_path.path {
+                    let msg = Message::WallpaperPathToogle {
+                        show: false,
+                        msg: Some(Ok(format!("Path setted to {:?}", path))),
+                    };
+                    Command::batch([self.update(msg)])
                 } else {
                     Command::none()
                 }
