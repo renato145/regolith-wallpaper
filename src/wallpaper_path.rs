@@ -50,19 +50,24 @@ impl WallpaperPath {
                 );
                 let path = PathBuf::from(&input);
                 if path.exists() {
-                    let msg =
-                        Message::WallpaperPathSetted(Ok(format!("Path setted to {:?}", path)));
+                    let msg = Message::WallpaperPathToogle {
+                        show: false,
+                        msg: Some(Ok(format!("Path setted to {:?}", path))),
+                    };
                     self.input = path.to_str().unwrap().to_string();
                     self.path = Some(path);
                     Some(msg)
                 } else {
-                    Some(Message::WallpaperPathSetted(Err(Error::InvalidPath(path))))
+                    Some(Message::UpdateStatusBar(Err(Error::InvalidPath(path))))
                 }
             }
             WallpaperPathMessage::Cancel => {
                 if let Some(path) = &self.path {
                     self.input = path.to_str().unwrap().to_string();
-                    Some(Message::WallpaperPathHide)
+                    Some(Message::WallpaperPathToogle {
+                        show: false,
+                        msg: None,
+                    })
                 } else {
                     None
                 }
@@ -78,11 +83,11 @@ impl WallpaperPath {
             .on_submit(WallpaperPathMessage::Ok);
 
         let button_ok = button(container(text("Ok").size(16)).width(100).center_x())
-            .padding(10)
+            .padding([5, 10])
             .style(theme::Button::Positive)
             .on_press(WallpaperPathMessage::Ok);
         let button_cancel = button(container(text("Cancel").size(16)).width(100).center_x())
-            .padding(10)
+            .padding([5, 10])
             .style(theme::Button::Destructive)
             .on_press_maybe(self.path.as_ref().map(|_| WallpaperPathMessage::Cancel));
         let buttons = row!(horizontal_space(Length::Fill), button_ok, button_cancel).spacing(10);

@@ -1,4 +1,4 @@
-use crate::{Error, StatusBar, WallpaperPath, WallpaperPathMessage};
+use crate::{Result, StatusBar, WallpaperPath, WallpaperPathMessage};
 use iced::font::Weight;
 use iced::widget::{self, button, column, container, text, vertical_space};
 use iced::{event, executor, keyboard, Event, Font, Length, Subscription};
@@ -8,9 +8,11 @@ use iced::{Application, Command, Element, Theme};
 pub enum Message {
     Event(Event),
     WallpaperPathMessage(WallpaperPathMessage),
-    WallpaperPathSetted(Result<String, Error>),
-    WallpaperPathHide,
-    UpdateStatusBar(Result<String, Error>),
+    WallpaperPathToogle {
+        show: bool,
+        msg: Option<Result<String>>,
+    },
+    UpdateStatusBar(Result<String>),
 }
 
 pub struct RegolithWallpaperApp {
@@ -69,15 +71,13 @@ impl Application for RegolithWallpaperApp {
                 Some(msg) => self.update(msg),
                 None => Command::none(),
             },
-            Message::WallpaperPathSetted(msg) => {
-                if msg.is_ok() {
-                    self.wallpaper_path_show = false;
+            Message::WallpaperPathToogle { show, msg } => {
+                self.wallpaper_path_show = show;
+                if let Some(msg) = msg {
+                    self.update(Message::UpdateStatusBar(msg))
+                } else {
+                    Command::none()
                 }
-                self.update(Message::UpdateStatusBar(msg))
-            }
-            Message::WallpaperPathHide => {
-                self.wallpaper_path_show = false;
-                Command::none()
             }
             Message::UpdateStatusBar(result) => {
                 match result {
@@ -104,10 +104,12 @@ impl Application for RegolithWallpaperApp {
                 .map(Message::WallpaperPathMessage);
             content = content.push(wallpaper_path);
         } else {
-            let edit_path_btn = button(container(text("Ok").size(16)).width(100).center_x())
-            .padding(10)
-            // .on_press(WallpaperPathMessage::Ok)
-            ;
+            let edit_path_btn = button(container(text("Edit path").size(16)).width(100).center_x())
+                .padding([5, 10])
+                .on_press(Message::WallpaperPathToogle {
+                    show: true,
+                    msg: None,
+                });
             content = content.push(edit_path_btn);
         }
 

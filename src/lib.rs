@@ -7,3 +7,5 @@ pub use app::*;
 pub use error::*;
 pub use status_bar::*;
 pub use wallpaper_path::*;
+
+pub type Result<T> = std::result::Result<T, Error>;
