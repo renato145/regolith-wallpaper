@@ -1,8 +1,12 @@
-use crate::{Result, StatusBar, WallpaperPath, WallpaperPathMessage};
+use crate::{Error, Result, StatusBar, WallpaperPath, WallpaperPathMessage};
+use futures::StreamExt;
 use iced::font::Weight;
-use iced::widget::{self, button, column, container, text, vertical_space};
+use iced::widget::{self, button, column, container, image, text, vertical_space, Row, Image};
 use iced::{event, executor, keyboard, Event, Font, Length, Subscription};
 use iced::{Application, Command, Element, Theme};
+use std::path::PathBuf;
+use tokio::fs::read_dir;
+use tokio_stream::wrappers::ReadDirStream;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -13,12 +17,14 @@ pub enum Message {
         msg: Option<Result<String>>,
     },
     WallpaperPathSetted,
+    LoadedPaths(Result<Vec<PathBuf>>),
     UpdateStatusBar(Result<String>),
 }
 
 pub struct RegolithWallpaperApp {
     wallpaper_path: WallpaperPath,
     wallpaper_path_show: bool,
+    images: Vec<PathBuf>,
     status_bar: StatusBar,
 }
 
@@ -39,6 +45,7 @@ impl Application for RegolithWallpaperApp {
             RegolithWallpaperApp {
                 wallpaper_path,
                 wallpaper_path_show,
+                images: Vec::new(),
                 status_bar: StatusBar::None,
             },
             cmd,
@@ -81,15 +88,27 @@ impl Application for RegolithWallpaperApp {
                 }
             }
             Message::WallpaperPathSetted => {
-                if let Some(path) = &self.wallpaper_path.path {
+                if let Some(path) = self.wallpaper_path.path.clone() {
                     let msg = Message::WallpaperPathToogle {
                         show: false,
                         msg: Some(Ok(format!("Path setted to {:?}", path))),
                     };
-                    Command::batch([self.update(msg)])
+                    let cmd = self.update(msg);
+                    Command::batch(vec![
+                        cmd,
+                        Command::perform(load_image_files(path), Message::LoadedPaths),
+                    ])
                 } else {
                     Command::none()
                 }
+            }
+            Message::LoadedPaths(Ok(paths)) => {
+                self.images = paths;
+                Command::none()
+            }
+            Message::LoadedPaths(Err(e)) => {
+                self.status_bar = StatusBar::Error(e.to_string());
+                Command::none()
             }
             Message::UpdateStatusBar(result) => {
                 match result {
@@ -122,7 +141,20 @@ impl Application for RegolithWallpaperApp {
                     show: true,
                     msg: None,
                 });
-            content = content.push(edit_path_btn);
+            let images = Row::with_children(
+                self.images
+                    .iter()
+                    .take(10)
+                    .map(|image| text(format!("{:?}", image)).into())
+                    .collect::<Vec<_>>(),
+            );
+            content = content.push(edit_path_btn).push(images);
+            if let Some(path) = self.images.first() {
+                let handle = image::Handle::from_path(path);
+                // let image = image::viewer(handle);
+                let image = Image::new(handle);
+                content = content.push(image);
+            }
         }
 
         column!(
@@ -136,4 +168,21 @@ impl Application for RegolithWallpaperApp {
     fn theme(&self) -> Self::Theme {
         Theme::Dark
     }
+}
+
+async fn load_image_files(path: PathBuf) -> Result<Vec<PathBuf>> {
+    let image_files = ReadDirStream::new(
+        read_dir(path)
+            .await
+            .map_err(|e| Error::UnexpectedError(format!("Failed to read files {}", e)))?,
+    )
+    .filter_map(|res| async {
+        match res {
+            Ok(x) => Some(x.path()),
+            Err(_) => None,
+        }
+    })
+    .collect::<Vec<_>>()
+    .await;
+    Ok(image_files)
 }
