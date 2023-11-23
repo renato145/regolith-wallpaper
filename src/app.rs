@@ -1,16 +1,16 @@
 use crate::{Error, Result, StatusBar, WallpaperImage, WallpaperPath, WallpaperPathMessage};
 use futures::StreamExt;
 use iced::font::Weight;
-use iced::widget::{self, button, column, container, text, vertical_space, Row};
-use iced::{event, executor, keyboard, Event, Font, Length, Subscription};
+use iced::widget::{button, column, container, scrollable, text, vertical_space};
+use iced::{executor, Font, Length};
 use iced::{Application, Command, Element, Theme};
+use iced_aw::Grid;
 use std::path::PathBuf;
 use tokio::fs::read_dir;
 use tokio_stream::wrappers::ReadDirStream;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Event(Event),
     WallpaperPathMessage(WallpaperPathMessage),
     WallpaperPathToogle {
         show: bool,
@@ -19,6 +19,7 @@ pub enum Message {
     WallpaperPathSetted,
     LoadedPaths(Result<Vec<PathBuf>>),
     LoadedImage(Result<WallpaperImage>),
+    SelectImage(usize),
     UpdateStatusBar(Result<String>),
 }
 
@@ -57,25 +58,8 @@ impl Application for RegolithWallpaperApp {
         String::from("regolith-wallpaper")
     }
 
-    fn subscription(&self) -> Subscription<Self::Message> {
-        event::listen().map(Message::Event)
-    }
-
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
-            Message::Event(event) => match event {
-                Event::Keyboard(keyboard::Event::KeyPressed {
-                    key_code: keyboard::KeyCode::Tab,
-                    modifiers,
-                }) => {
-                    if modifiers.shift() {
-                        widget::focus_previous()
-                    } else {
-                        widget::focus_next()
-                    }
-                }
-                _ => Command::none(),
-            },
             Message::WallpaperPathMessage(msg) => match self.wallpaper_path.update(msg) {
                 Some(msg) => self.update(msg),
                 None => Command::none(),
@@ -94,6 +78,7 @@ impl Application for RegolithWallpaperApp {
                         show: false,
                         msg: Some(Ok(format!("Path setted to {:?}", path))),
                     };
+                    self.images.clear();
                     let cmd = self.update(msg);
                     Command::batch(vec![
                         cmd,
@@ -106,9 +91,10 @@ impl Application for RegolithWallpaperApp {
             Message::LoadedPaths(Ok(paths)) => {
                 let commands = paths
                     .into_iter()
-                    .take(10)
-                    .map(|path| {
-                        Command::perform(WallpaperImage::from_path(path), Message::LoadedImage)
+                    .enumerate()
+                    .take(30)
+                    .map(|(i, path)| {
+                        Command::perform(WallpaperImage::from_path(i, path), Message::LoadedImage)
                     })
                     .collect::<Vec<_>>();
                 Command::batch(commands)
@@ -125,7 +111,16 @@ impl Application for RegolithWallpaperApp {
                 self.status_bar = StatusBar::Error(e.to_string());
                 Command::none()
             }
-
+            Message::SelectImage(id) => {
+                self.images.iter_mut().for_each(|image| {
+                    if image.id == id {
+                        image.selected = !image.selected;
+                    } else {
+                        image.selected = false;
+                    }
+                });
+                Command::none()
+            }
             Message::UpdateStatusBar(result) => {
                 match result {
                     Ok(success) => self.status_bar = StatusBar::Ok(success),
@@ -142,7 +137,7 @@ impl Application for RegolithWallpaperApp {
             ..Default::default()
         });
 
-        let mut content = column!(title, vertical_space(10)).spacing(10).padding(20);
+        let mut content = column!(title, vertical_space(10)).spacing(25).padding(20);
 
         if self.wallpaper_path_show {
             let wallpaper_path = self
@@ -161,14 +156,16 @@ impl Application for RegolithWallpaperApp {
         }
 
         if !self.images.is_empty() {
-            let images = Row::with_children(
+            let images = Grid::with_children(
                 self.images
                     .iter()
                     .map(|image| image.view())
                     .collect::<Vec<_>>(),
             )
-            .spacing(20);
-            content = content.push(images);
+            .strategy(iced_aw::Strategy::ColumnWidth(384.0));
+            content = content
+                .push(scrollable(container(images).width(Length::Fill).center_x()))
+                .height(Length::FillPortion(9));
         }
 
         column!(
