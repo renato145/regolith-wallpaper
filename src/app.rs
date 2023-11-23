@@ -18,6 +18,7 @@ pub enum Message {
     },
     WallpaperPathSetted,
     LoadedPaths(Result<Vec<PathBuf>>),
+    LoadedImage(Result<WallpaperImage>),
     UpdateStatusBar(Result<String>),
 }
 
@@ -103,17 +104,28 @@ impl Application for RegolithWallpaperApp {
                 }
             }
             Message::LoadedPaths(Ok(paths)) => {
-                self.images = paths
+                let commands = paths
                     .into_iter()
                     .take(10)
-                    .map(WallpaperImage::from_path)
-                    .collect();
-                Command::none()
+                    .map(|path| {
+                        Command::perform(WallpaperImage::from_path(path), Message::LoadedImage)
+                    })
+                    .collect::<Vec<_>>();
+                Command::batch(commands)
             }
             Message::LoadedPaths(Err(e)) => {
                 self.status_bar = StatusBar::Error(e.to_string());
                 Command::none()
             }
+            Message::LoadedImage(Ok(image)) => {
+                self.images.push(image);
+                Command::none()
+            }
+            Message::LoadedImage(Err(e)) => {
+                self.status_bar = StatusBar::Error(e.to_string());
+                Command::none()
+            }
+
             Message::UpdateStatusBar(result) => {
                 match result {
                     Ok(success) => self.status_bar = StatusBar::Ok(success),

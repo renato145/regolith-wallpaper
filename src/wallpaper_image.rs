@@ -1,3 +1,4 @@
+use crate::{Error, Result};
 use iced::{
     widget::{
         container,
@@ -8,17 +9,22 @@ use iced::{
 };
 use std::path::PathBuf;
 
+#[derive(Debug, Clone)]
 pub struct WallpaperImage {
     image: Handle,
 }
 
 impl WallpaperImage {
     #[tracing::instrument]
-    pub fn from_path(path: PathBuf) -> Self {
+    pub async fn from_path(path: PathBuf) -> Result<Self> {
         tracing::info!("Loading image...");
-        let image = image::Handle::from_path(path);
+        let bytes = tokio::fs::read(&path).await.map_err(|e| {
+            tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to read file.");
+            Error::FailedToRead(path)
+        })?;
+        let image = image::Handle::from_memory(bytes);
         tracing::info!("Image loaded.");
-        Self { image }
+        Ok(Self { image })
     }
 
     pub fn view<'a, T: 'a>(&'a self) -> Element<T> {

@@ -13,7 +13,7 @@ iced = { git = "https://github.com/iced-rs/iced", rev = "100d15f30654d446cffe2fb
     "image",
 ] }
 thiserror = "1.0"
-tokio = { version = "1.34", features = ["fs", "rt"] }
+tokio = { version = "1.34", features = ["fs", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

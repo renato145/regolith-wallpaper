@@ -50,10 +50,6 @@ impl WallpaperPath {
                 );
                 let path = PathBuf::from(&input);
                 if path.exists() {
-                    // let msg = Message::WallpaperPathToogle {
-                    //     show: false,
-                    //     msg: Some(Ok(format!("Path setted to {:?}", path))),
-                    // };
                     self.input = path.to_str().unwrap().to_string();
                     self.path = Some(path);
                     Some(Message::WallpaperPathSetted)
