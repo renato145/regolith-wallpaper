@@ -2109,6 +2109,7 @@ dependencies = [
  "futures",
  "iced",
  "iced_aw",
+ "image",
  "thiserror",
  "tokio",
  "tokio-stream",

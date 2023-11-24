@@ -5,6 +5,7 @@ use iced::widget::{button, column, container, scrollable, text, vertical_space};
 use iced::{executor, Font, Length};
 use iced::{Application, Command, Element, Theme};
 use iced_aw::Grid;
+use image::ImageFormat;
 use std::path::PathBuf;
 use tokio::fs::read_dir;
 use tokio_stream::wrappers::ReadDirStream;
@@ -28,15 +29,16 @@ pub struct RegolithWallpaperApp {
     wallpaper_path_show: bool,
     images: Vec<WallpaperImage>,
     status_bar: StatusBar,
+    limit: Option<usize>,
 }
 
 impl Application for RegolithWallpaperApp {
     type Executor = executor::Default;
-    type Flags = ();
+    type Flags = Option<usize>;
     type Message = Message;
     type Theme = Theme;
 
-    fn new(_flags: ()) -> (RegolithWallpaperApp, Command<Self::Message>) {
+    fn new(flags: Self::Flags) -> (RegolithWallpaperApp, Command<Self::Message>) {
         let wallpaper_path = WallpaperPath::new();
         let (wallpaper_path_show, cmd) = if wallpaper_path.path.is_some() {
             (false, Command::none())
@@ -49,6 +51,7 @@ impl Application for RegolithWallpaperApp {
                 wallpaper_path_show,
                 images: Vec::new(),
                 status_bar: StatusBar::None,
+                limit: flags,
             },
             cmd,
         )
@@ -91,8 +94,17 @@ impl Application for RegolithWallpaperApp {
             Message::LoadedPaths(Ok(paths)) => {
                 let commands = paths
                     .into_iter()
+                    .filter(|path| {
+                        if path.is_dir() {
+                            return false;
+                        }
+                        match path.extension() {
+                            Some(ext) => ImageFormat::from_extension(ext).is_some(),
+                            None => false,
+                        }
+                    })
                     .enumerate()
-                    .take(30)
+                    .take(self.limit.unwrap_or(usize::MAX))
                     .map(|(i, path)| {
                         Command::perform(WallpaperImage::from_path(i, path), Message::LoadedImage)
                     })

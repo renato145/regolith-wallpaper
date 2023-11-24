@@ -1,11 +1,7 @@
 use crate::{Error, Message, Result};
 use iced::{
-    widget::{
-        container,
-        image::{self, Handle},
-        mouse_area, Image,
-    },
-    Color, ContentFit, Element,
+    widget::{container, image::Handle, mouse_area, Image},
+    Color, Element,
 };
 use std::path::PathBuf;
 
@@ -21,12 +17,17 @@ impl WallpaperImage {
     #[tracing::instrument]
     pub async fn from_path(id: usize, path: PathBuf) -> Result<Self> {
         tracing::info!("Loading image...");
-        let bytes = tokio::fs::read(&path).await.map_err(|e| {
-            tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to read file.");
-            Error::FailedToRead(path.clone())
-        })?;
-        let image = image::Handle::from_memory(bytes);
-        tracing::info!("Image loaded.");
+        let now = std::time::Instant::now();
+        let img = image::io::Reader::open(&path)
+            .map_err(|e| Error::UnexpectedError(e.to_string()))?
+            .decode()
+            .map_err(|e| Error::UnexpectedError(e.to_string()))?
+            .resize(360, 200, image::imageops::FilterType::Gaussian);
+        let width = img.width();
+        let height = img.height();
+        let pixels = img.into_rgba8().into_raw();
+        let image = iced::widget::image::Handle::from_pixels(width, height, pixels);
+        tracing::info!(elapsed=?now.elapsed(), "Image loaded.");
         Ok(Self {
             id,
             path,
@@ -46,17 +47,19 @@ impl WallpaperImage {
             Color::TRANSPARENT
         };
         mouse_area(
-            container(Image::new(self.image.clone()).content_fit(ContentFit::Contain))
-                .width(360)
-                .height(200)
-                .center_x()
-                .center_y()
-                .padding(10)
-                .style(move |_: &_| container::Appearance {
-                    border_width: 2.0,
-                    border_color,
-                    ..Default::default()
-                }),
+            container(
+                Image::new(self.image.clone()), // .content_fit(ContentFit::Contain)
+            )
+            .width(360)
+            .height(200)
+            .center_x()
+            .center_y()
+            .padding(10)
+            .style(move |_: &_| container::Appearance {
+                border_width: 2.0,
+                border_color,
+                ..Default::default()
+            }),
         )
         .on_press(Message::SelectImage(self.id))
         .into()

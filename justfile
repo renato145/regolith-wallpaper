@@ -2,10 +2,10 @@ _default:
   @just --choose
 
 run-nvidia-prime:
-  __NV_PRIME_RENDER_OFFLOAD=1 cargo run
+  __NV_PRIME_RENDER_OFFLOAD=1 cargo run -- 30
 
 run-nvidia:
-  WGPU_BACKEND=gl cargo run
+  WGPU_BACKEND=gl cargo run -- 30
 
 checks:
   #!/usr/bin/env bash
