@@ -30,3 +30,8 @@ brew install michaeleisel/zld/zld
 
 When using nvidia hybrid graphics you may need to run the program with the env
 variable `__NV_PRIME_RENDER_OFFLOAD=1` to be able to se images.
+
+### Desktop entry
+
+Copy `regolith-wallpaper.desktop` to `~/.local/share/applications/`
+

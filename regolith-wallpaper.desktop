@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=Regolith Wallpaper
+Exec=~/.cargo/bin/regolith-wallpaper
+Type=Application
+Categories=Regolith,Wallpaper;
