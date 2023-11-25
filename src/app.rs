@@ -9,7 +9,6 @@ use iced::{Application, Command, Element, Theme};
 use iced_aw::Grid;
 use image::ImageFormat;
 use std::path::PathBuf;
-use std::time::Duration;
 use tokio::fs::{read_dir, read_to_string, write};
 use tokio_stream::wrappers::ReadDirStream;
 
@@ -305,7 +304,6 @@ async fn set_wallpaper_on_config(path: PathBuf) -> Result<PathBuf> {
         tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to write file.");
         Error::FailedWriteRegConfigFile
     })?;
-    tokio::time::sleep(Duration::from_millis(200)).await;
     let exit_status = tokio::process::Command::new("/usr/bin/regolith-look")
         .arg("refresh")
         .status()
