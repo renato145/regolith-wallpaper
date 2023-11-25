@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Faild to write regolith config file (~/.config/regolith3/Xresources).")]
+    #[error("Failed to run `regolith-look refresh`.")]
+    FailedToRunRefresh,
+    #[error("Failed to write regolith config file (~/.config/regolith3/Xresources).")]
     FailedWriteRegConfigFile,
     #[error("Regolith config file not found (~/.config/regolith3/Xresources).")]
     NoRegConfigFile,

@@ -9,6 +9,7 @@ use iced::{Application, Command, Element, Theme};
 use iced_aw::Grid;
 use image::ImageFormat;
 use std::path::PathBuf;
+use std::time::Duration;
 use tokio::fs::{read_dir, read_to_string, write};
 use tokio_stream::wrappers::ReadDirStream;
 
@@ -198,7 +199,8 @@ impl Application for RegolithWallpaperApp {
 
             if let Some(image) = &self.current_wallpaper {
                 content = content.push(column!(text("Current wallpaper"), image.view()).spacing(4));
-            } else if let Some(e) = &self.current_wallpaper_error {
+            }
+            if let Some(e) = &self.current_wallpaper_error {
                 content = content.push(text(e));
             }
         }
@@ -303,7 +305,24 @@ async fn set_wallpaper_on_config(path: PathBuf) -> Result<PathBuf> {
         tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to write file.");
         Error::FailedWriteRegConfigFile
     })?;
-    Ok(path)
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let exit_status = tokio::process::Command::new("/usr/bin/regolith-look")
+        .arg("refresh")
+        .status()
+        .await
+        .map_err(|e| {
+            tracing::error!(error.cause_chain=?e, error.message=%e);
+            Error::FailedToRunRefresh
+        })?;
+    if exit_status.success() {
+        Ok(path)
+    } else {
+        tracing::error!(
+            "Failed to run command, exited with code: {:?}",
+            exit_status.code()
+        );
+        Err(Error::FailedToRunRefresh)
+    }
 }
 
 #[cfg(test)]
