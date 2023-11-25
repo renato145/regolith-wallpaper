@@ -1,4 +1,4 @@
-use crate::{Error, Message};
+use crate::{expand_home_dir, Error, Message};
 use iced::widget::{button, column, container, horizontal_space, row, text, text_input};
 use iced::{theme, Color, Length};
 use iced::{Command, Element};
@@ -44,11 +44,7 @@ impl WallpaperPath {
                 None
             }
             WallpaperPathMessage::Ok => {
-                let input = self.input.replace(
-                    '~',
-                    &std::env::var("HOME").expect("$HOME env var not found."),
-                );
-                let path = PathBuf::from(&input);
+                let path = expand_home_dir(&self.input);
                 if path.exists() {
                     self.input = path.to_str().unwrap().to_string();
                     self.path = Some(path);

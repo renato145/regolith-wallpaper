@@ -1,4 +1,6 @@
-use crate::{Error, Result, StatusBar, WallpaperImage, WallpaperPath, WallpaperPathMessage};
+use crate::{
+    expand_home_dir, Error, Result, StatusBar, WallpaperImage, WallpaperPath, WallpaperPathMessage,
+};
 use futures::StreamExt;
 use iced::font::Weight;
 use iced::widget::{button, column, container, scrollable, text, vertical_space};
@@ -7,11 +9,13 @@ use iced::{Application, Command, Element, Theme};
 use iced_aw::Grid;
 use image::ImageFormat;
 use std::path::PathBuf;
-use tokio::fs::read_dir;
+use tokio::fs::{read_dir, read_to_string, write};
 use tokio_stream::wrappers::ReadDirStream;
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    CurrentWallpaperPath(Result<PathBuf>),
+    CurrentWallpaperImage(Result<WallpaperImage>),
     WallpaperPathMessage(WallpaperPathMessage),
     WallpaperPathToogle {
         show: bool,
@@ -25,6 +29,8 @@ pub enum Message {
 }
 
 pub struct RegolithWallpaperApp {
+    current_wallpaper: Option<WallpaperImage>,
+    current_wallpaper_error: Option<String>,
     wallpaper_path: WallpaperPath,
     wallpaper_path_show: bool,
     images: Vec<WallpaperImage>,
@@ -40,20 +46,24 @@ impl Application for RegolithWallpaperApp {
 
     fn new(flags: Self::Flags) -> (RegolithWallpaperApp, Command<Self::Message>) {
         let wallpaper_path = WallpaperPath::new();
-        let (wallpaper_path_show, cmd) = if wallpaper_path.path.is_some() {
+        let (wallpaper_path_show, focus_cmd) = if wallpaper_path.path.is_some() {
             (false, Command::none())
         } else {
             (true, wallpaper_path.focus_input())
         };
+        let load_regolith_config_cmd =
+            Command::perform(load_regolith_config(), Message::CurrentWallpaperPath);
         (
             RegolithWallpaperApp {
+                current_wallpaper: None,
+                current_wallpaper_error: None,
                 wallpaper_path,
                 wallpaper_path_show,
                 images: Vec::new(),
                 status_bar: StatusBar::None,
                 limit: flags,
             },
-            cmd,
+            Command::batch(vec![focus_cmd, load_regolith_config_cmd]),
         )
     }
 
@@ -63,6 +73,24 @@ impl Application for RegolithWallpaperApp {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
+            Message::CurrentWallpaperPath(Ok(path)) => Command::perform(
+                WallpaperImage::from_path(0, path),
+                Message::CurrentWallpaperImage,
+            ),
+            Message::CurrentWallpaperPath(Err(e)) => {
+                tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to get wallpaper path from current regolith configuration.");
+                self.current_wallpaper_error = Some(e.to_string());
+                Command::none()
+            }
+            Message::CurrentWallpaperImage(Ok(image)) => {
+                self.current_wallpaper = Some(image);
+                Command::none()
+            }
+            Message::CurrentWallpaperImage(Err(e)) => {
+                tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to load image from wallpaper path from current regolith configuration.");
+                self.current_wallpaper_error = Some(e.to_string());
+                Command::none()
+            }
             Message::WallpaperPathMessage(msg) => match self.wallpaper_path.update(msg) {
                 Some(msg) => self.update(msg),
                 None => Command::none(),
@@ -94,15 +122,6 @@ impl Application for RegolithWallpaperApp {
             Message::LoadedPaths(Ok(paths)) => {
                 let commands = paths
                     .into_iter()
-                    .filter(|path| {
-                        if path.is_dir() {
-                            return false;
-                        }
-                        match path.extension() {
-                            Some(ext) => ImageFormat::from_extension(ext).is_some(),
-                            None => false,
-                        }
-                    })
                     .enumerate()
                     .take(self.limit.unwrap_or(usize::MAX))
                     .map(|(i, path)| {
@@ -131,7 +150,14 @@ impl Application for RegolithWallpaperApp {
                         image.selected = false;
                     }
                 });
-                Command::none()
+                if let Some(image) = self.images.iter().find(|image| image.id == id) {
+                    Command::perform(
+                        set_wallpaper_on_config(image.path.clone()),
+                        Message::CurrentWallpaperPath,
+                    )
+                } else {
+                    Command::none()
+                }
             }
             Message::UpdateStatusBar(result) => {
                 match result {
@@ -149,7 +175,7 @@ impl Application for RegolithWallpaperApp {
             ..Default::default()
         });
 
-        let mut content = column!(title, vertical_space(10)).spacing(25).padding(20);
+        let mut content = column!(title).spacing(25).padding(20);
 
         if self.wallpaper_path_show {
             let wallpaper_path = self
@@ -158,13 +184,23 @@ impl Application for RegolithWallpaperApp {
                 .map(Message::WallpaperPathMessage);
             content = content.push(wallpaper_path);
         } else {
-            let edit_path_btn = button(container(text("Edit path").size(16)).width(100).center_x())
-                .padding([5, 10])
-                .on_press(Message::WallpaperPathToogle {
-                    show: true,
-                    msg: None,
-                });
+            let edit_path_btn = button(
+                container(text("Edit wallpapers path").size(14))
+                    .width(200)
+                    .center_x(),
+            )
+            .padding([2, 4])
+            .on_press(Message::WallpaperPathToogle {
+                show: true,
+                msg: None,
+            });
             content = content.push(edit_path_btn);
+
+            if let Some(image) = &self.current_wallpaper {
+                content = content.push(column!(text("Current wallpaper"), image.view()).spacing(4));
+            } else if let Some(e) = &self.current_wallpaper_error {
+                content = content.push(text(e));
+            }
         }
 
         if !self.images.is_empty() {
@@ -203,12 +239,80 @@ async fn load_image_files(path: PathBuf) -> Result<Vec<PathBuf>> {
     )
     .filter_map(|res| async {
         match res {
-            Ok(x) => Some(x.path()),
+            Ok(x) => {
+                let path = x.path();
+                if path.is_dir() {
+                    None
+                } else {
+                    path.extension()
+                        .and_then(ImageFormat::from_extension)
+                        .map(|_| path)
+                }
+            }
             Err(_) => None,
         }
     })
     .collect::<Vec<_>>()
     .await;
-    tracing::info!("Files loaded...");
+    tracing::info!("{} files loaded.", image_files.len());
     Ok(image_files)
+}
+
+async fn read_regolith_config() -> Result<String> {
+    let path = expand_home_dir("~/.config/regolith3/Xresources");
+    if !path.exists() {
+        return Err(Error::NoRegConfigFile);
+    }
+    read_to_string(path).await.map_err(|e| {
+        tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to read file.");
+        Error::FailedReadRegConfigFile
+    })
+}
+
+async fn load_regolith_config() -> Result<PathBuf> {
+    read_regolith_config()
+        .await?
+        .lines()
+        .find(|line| line.starts_with("regolith.wallpaper.file:"))
+        .ok_or(Error::NoWallpaperOnRegConfigFile)?
+        .split(':')
+        .nth(1)
+        .ok_or(Error::NoWallpaperOnRegConfigFile)
+        .map(|path| expand_home_dir(path.trim()))
+}
+
+/// Sets the path on the current regolith config file, if success returns the
+/// setted image path
+async fn set_wallpaper_on_config(path: PathBuf) -> Result<PathBuf> {
+    let content = read_regolith_config().await?;
+    let mut lines = content.lines();
+    let mut new_content = String::new();
+    for line in &mut lines {
+        if line.starts_with("regolith.wallpaper.file:") {
+            let path_str = path.to_str().unwrap().to_string();
+            new_content.push_str(&format!("regolith.wallpaper.file: {}\n", path_str));
+            break;
+        } else {
+            new_content.push_str(line);
+            new_content.push('\n');
+        }
+    }
+    new_content.push_str(&lines.collect::<Vec<_>>().join("\n"));
+    let config_path = expand_home_dir("~/.config/regolith3/Xresources");
+    write(config_path, new_content).await.map_err(|e| {
+        tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to write file.");
+        Error::FailedWriteRegConfigFile
+    })?;
+    Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn load_regolith_config_works() {
+        let res = load_regolith_config().await;
+        println!("{:?}", res);
+    }
 }

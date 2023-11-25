@@ -42,7 +42,7 @@ impl WallpaperImage {
 
     pub fn view(&self) -> Element<Message> {
         let border_color = if self.selected {
-            Color::from_rgb(0.1, 0.75, 0.3)
+            Color::from_rgb(0.741, 0.576, 0.976)
         } else {
             Color::TRANSPARENT
         };
