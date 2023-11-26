@@ -3,8 +3,9 @@ use crate::{
 };
 use futures::StreamExt;
 use iced::font::Weight;
+use iced::keyboard::KeyCode;
 use iced::widget::{button, column, container, scrollable, text, vertical_space};
-use iced::{executor, Font, Length};
+use iced::{executor, keyboard, subscription, window, Event, Font, Length, Subscription};
 use iced::{Application, Command, Element, Theme};
 use iced_aw::Grid;
 use image::ImageFormat;
@@ -14,6 +15,7 @@ use tokio_stream::wrappers::ReadDirStream;
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    EventOcurred(Event),
     CurrentWallpaperPath(Result<PathBuf>),
     CurrentWallpaperImage(Result<WallpaperImage>),
     WallpaperPathMessage(WallpaperPathMessage),
@@ -71,8 +73,22 @@ impl Application for RegolithWallpaperApp {
         String::from("regolith-wallpaper")
     }
 
+    fn theme(&self) -> Self::Theme {
+        Theme::Dark
+    }
+
+    fn subscription(&self) -> Subscription<Self::Message> {
+        subscription::events().map(Message::EventOcurred)
+    }
+
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
+            Message::EventOcurred(Event::Keyboard(keyboard::Event::KeyPressed {
+                key_code: KeyCode::Escape | KeyCode::Q,
+                modifiers: _,
+            })) => window::close(),
+            Message::EventOcurred(Event::Window(window::Event::CloseRequested)) => window::close(),
+            Message::EventOcurred(_) => Command::none(),
             Message::CurrentWallpaperPath(Ok(path)) => Command::perform(
                 WallpaperImage::from_path(0, path),
                 Message::CurrentWallpaperImage,
@@ -223,10 +239,6 @@ impl Application for RegolithWallpaperApp {
             self.status_bar.view()
         )
         .into()
-    }
-
-    fn theme(&self) -> Self::Theme {
-        Theme::Dark
     }
 }
 
