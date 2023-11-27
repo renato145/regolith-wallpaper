@@ -1,4 +1,4 @@
-use crate::{expand_home_dir, Error, Message};
+use crate::{expand_home_dir, Configuration, Error, Message};
 use iced::widget::{button, column, container, horizontal_space, row, text, text_input};
 use iced::{theme, Color, Length};
 use iced::{Command, Element};
@@ -18,17 +18,16 @@ pub struct WallpaperPath {
     pub input_id: text_input::Id,
 }
 
-impl Default for WallpaperPath {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl WallpaperPath {
-    pub fn new() -> Self {
+    pub fn from_config(config: &Configuration) -> Self {
+        let input = config
+            .wallpapers_path
+            .as_ref()
+            .map(|path| path.to_str().unwrap_or_default().to_string())
+            .unwrap_or_default();
         Self {
-            input: String::new(),
-            path: None,
+            input,
+            path: config.wallpapers_path.clone(),
             input_id: text_input::Id::unique(),
         }
     }

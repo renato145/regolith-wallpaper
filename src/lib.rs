@@ -1,4 +1,5 @@
 mod app;
+mod configuration;
 mod error;
 mod status_bar;
 mod utils;
@@ -6,6 +7,7 @@ mod wallpaper_image;
 mod wallpaper_path;
 
 pub use app::*;
+pub use configuration::*;
 pub use error::*;
 pub use status_bar::*;
 pub use utils::*;

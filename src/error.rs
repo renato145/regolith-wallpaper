@@ -4,8 +4,6 @@ use std::path::PathBuf;
 pub enum Error {
     #[error("Failed to run `regolith-look refresh`.")]
     FailedToRunRefresh,
-    #[error("Failed to write regolith config file (~/.config/regolith3/Xresources).")]
-    FailedWriteRegConfigFile,
     #[error("Regolith config file not found (~/.config/regolith3/Xresources).")]
     NoRegConfigFile,
     #[error("Failed to read regolith config file (~/.config/regolith3/Xresources).")]
@@ -14,8 +12,12 @@ pub enum Error {
     NoWallpaperOnRegConfigFile,
     #[error("Failed to read file: {0}")]
     FailedToRead(PathBuf),
+    #[error("Failed to write file: {0}")]
+    FailedToWriteFile(PathBuf),
     #[error("Invalid path: {0}")]
     InvalidPath(PathBuf),
+    #[error("No home directory found.")]
+    NoHomeDir,
     #[error("{0}")]
     UnexpectedError(String),
 }

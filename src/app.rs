@@ -1,5 +1,6 @@
 use crate::{
-    expand_home_dir, Error, Result, StatusBar, WallpaperImage, WallpaperPath, WallpaperPathMessage,
+    expand_home_dir, get_configuration_path, Configuration, Error, Result, StatusBar,
+    WallpaperImage, WallpaperPath, WallpaperPathMessage,
 };
 use futures::StreamExt;
 use iced::font::Weight;
@@ -28,6 +29,7 @@ pub enum Message {
     LoadedImage(Result<WallpaperImage>),
     SelectImage(usize),
     UpdateStatusBar(Result<String>),
+    ConfigSaved(Result<()>),
 }
 
 pub struct RegolithWallpaperApp {
@@ -37,21 +39,23 @@ pub struct RegolithWallpaperApp {
     wallpaper_path_show: bool,
     images: Vec<WallpaperImage>,
     status_bar: StatusBar,
-    limit: Option<usize>,
+    configuration: Configuration,
 }
 
 impl Application for RegolithWallpaperApp {
     type Executor = executor::Default;
-    type Flags = Option<usize>;
+    type Flags = Configuration;
     type Message = Message;
     type Theme = Theme;
 
-    fn new(flags: Self::Flags) -> (RegolithWallpaperApp, Command<Self::Message>) {
-        let wallpaper_path = WallpaperPath::new();
-        let (wallpaper_path_show, focus_cmd) = if wallpaper_path.path.is_some() {
-            (false, Command::none())
-        } else {
-            (true, wallpaper_path.focus_input())
+    fn new(config: Self::Flags) -> (RegolithWallpaperApp, Command<Self::Message>) {
+        let wallpaper_path = WallpaperPath::from_config(&config);
+        let (wallpaper_path_show, focus_cmd) = match &wallpaper_path.path {
+            Some(path) => (
+                false,
+                Command::perform(load_image_files(path.clone()), Message::LoadedPaths),
+            ),
+            None => (true, wallpaper_path.focus_input()),
         };
         let load_regolith_config_cmd =
             Command::perform(load_regolith_config(), Message::CurrentWallpaperPath);
@@ -63,7 +67,7 @@ impl Application for RegolithWallpaperApp {
                 wallpaper_path_show,
                 images: Vec::new(),
                 status_bar: StatusBar::None,
-                limit: flags,
+                configuration: config,
             },
             Command::batch(vec![focus_cmd, load_regolith_config_cmd]),
         )
@@ -121,14 +125,18 @@ impl Application for RegolithWallpaperApp {
             }
             Message::WallpaperPathSetted => {
                 if let Some(path) = self.wallpaper_path.path.clone() {
-                    let msg = Message::WallpaperPathToogle {
+                    self.images.clear();
+                    self.configuration.wallpapers_path = Some(path.clone());
+                    let toogle_cmd = self.update(Message::WallpaperPathToogle {
                         show: false,
                         msg: Some(Ok(format!("Path setted to {:?}", path))),
-                    };
-                    self.images.clear();
-                    let cmd = self.update(msg);
+                    });
                     Command::batch(vec![
-                        cmd,
+                        toogle_cmd,
+                        Command::perform(
+                            save_config(self.configuration.clone()),
+                            Message::ConfigSaved,
+                        ),
                         Command::perform(load_image_files(path), Message::LoadedPaths),
                     ])
                 } else {
@@ -139,7 +147,7 @@ impl Application for RegolithWallpaperApp {
                 let commands = paths
                     .into_iter()
                     .enumerate()
-                    .take(self.limit.unwrap_or(usize::MAX))
+                    .take(self.configuration.max_images.unwrap_or(usize::MAX))
                     .map(|(i, path)| {
                         Command::perform(WallpaperImage::from_path(i, path), Message::LoadedImage)
                     })
@@ -179,6 +187,12 @@ impl Application for RegolithWallpaperApp {
                 match result {
                     Ok(success) => self.status_bar = StatusBar::Ok(success),
                     Err(e) => self.status_bar = StatusBar::Error(e.to_string()),
+                }
+                Command::none()
+            }
+            Message::ConfigSaved(result) => {
+                if let Err(e) = result {
+                    self.status_bar = StatusBar::Error(e.to_string());
                 }
                 Command::none()
             }
@@ -240,6 +254,19 @@ impl Application for RegolithWallpaperApp {
         )
         .into()
     }
+}
+
+async fn save_config(config: Configuration) -> Result<()> {
+    let content = serde_yaml::to_string(&config).map_err(|e| {
+        tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to serialize content.");
+        Error::UnexpectedError(e.to_string())
+    })?;
+    let path = get_configuration_path()?;
+    write(&path, content).await.map_err(|e| {
+        tracing::error!(error.cause_chain=?e, error.message=%e, ?path, "Failed to path file.");
+        Error::FailedToWriteFile(path.clone())
+    })?;
+    Ok(())
 }
 
 #[tracing::instrument]
@@ -312,9 +339,9 @@ async fn set_wallpaper_on_config(path: PathBuf) -> Result<PathBuf> {
     }
     new_content.push_str(&lines.collect::<Vec<_>>().join("\n"));
     let config_path = expand_home_dir("~/.config/regolith3/Xresources");
-    write(config_path, new_content).await.map_err(|e| {
+    write(&config_path, new_content).await.map_err(|e| {
         tracing::error!(error.cause_chain=?e, error.message=%e, "Failed to write file.");
-        Error::FailedWriteRegConfigFile
+        Error::FailedToWriteFile(config_path)
     })?;
     let exit_status = tokio::process::Command::new("/usr/bin/regolith-look")
         .arg("refresh")
