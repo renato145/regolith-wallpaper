@@ -40,6 +40,7 @@ pub struct RegolithWallpaperApp {
     images: Vec<WallpaperImage>,
     status_bar: StatusBar,
     configuration: Configuration,
+    max_images: Option<usize>,
 }
 
 impl Application for RegolithWallpaperApp {
@@ -67,6 +68,7 @@ impl Application for RegolithWallpaperApp {
                 wallpaper_path_show,
                 images: Vec::new(),
                 status_bar: StatusBar::None,
+                max_images: config.max_images,
                 configuration: config,
             },
             Command::batch(vec![focus_cmd, load_regolith_config_cmd]),
@@ -147,7 +149,7 @@ impl Application for RegolithWallpaperApp {
                 let commands = paths
                     .into_iter()
                     .enumerate()
-                    .take(self.configuration.max_images.unwrap_or(usize::MAX))
+                    .take(self.max_images.unwrap_or(usize::MAX))
                     .map(|(i, path)| {
                         Command::perform(WallpaperImage::from_path(i, path), Message::LoadedImage)
                     })
