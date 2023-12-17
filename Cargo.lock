@@ -2172,6 +2172,7 @@ dependencies = [
  "iced",
  "iced_aw",
  "image",
+ "rand",
  "serde",
  "serde_yaml",
  "thiserror",

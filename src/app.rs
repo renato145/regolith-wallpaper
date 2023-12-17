@@ -5,11 +5,14 @@ use crate::{
 use futures::StreamExt;
 use iced::font::Weight;
 use iced::keyboard::KeyCode;
-use iced::widget::{button, column, container, scrollable, text, vertical_space};
+use iced::widget::{
+    button, column, container, horizontal_space, row, scrollable, text, vertical_space,
+};
 use iced::{executor, keyboard, subscription, window, Event, Font, Length, Subscription};
 use iced::{Application, Command, Element, Theme};
 use iced_aw::Grid;
 use image::ImageFormat;
+use rand::seq::IteratorRandom;
 use std::path::PathBuf;
 use tokio::fs::{read_dir, read_to_string, write};
 use tokio_stream::wrappers::ReadDirStream;
@@ -28,6 +31,7 @@ pub enum Message {
     LoadedPaths(Result<Vec<PathBuf>>),
     LoadedImage(Result<WallpaperImage>),
     SelectImage(usize),
+    PickRandomImage,
     UpdateStatusBar(Result<String>),
     ConfigSaved(Result<()>),
 }
@@ -41,6 +45,27 @@ pub struct RegolithWallpaperApp {
     status_bar: StatusBar,
     configuration: Configuration,
     max_images: Option<usize>,
+}
+
+impl RegolithWallpaperApp {
+    fn unselect_images(&mut self) {
+        self.images.iter_mut().for_each(|image| {
+            image.selected = false;
+        });
+    }
+
+    fn select_image(&mut self, id: usize) -> Command<Message> {
+        self.unselect_images();
+        if let Some(image) = self.images.iter_mut().find(|image| image.id == id) {
+            image.selected = false;
+            Command::perform(
+                set_wallpaper_on_config(image.path.clone()),
+                Message::CurrentWallpaperPath,
+            )
+        } else {
+            Command::none()
+        }
+    }
 }
 
 impl Application for RegolithWallpaperApp {
@@ -168,19 +193,11 @@ impl Application for RegolithWallpaperApp {
                 self.status_bar = StatusBar::Error(e.to_string());
                 Command::none()
             }
-            Message::SelectImage(id) => {
-                self.images.iter_mut().for_each(|image| {
-                    if image.id == id {
-                        image.selected = !image.selected;
-                    } else {
-                        image.selected = false;
-                    }
-                });
-                if let Some(image) = self.images.iter().find(|image| image.id == id) {
-                    Command::perform(
-                        set_wallpaper_on_config(image.path.clone()),
-                        Message::CurrentWallpaperPath,
-                    )
+            Message::SelectImage(id) => self.select_image(id),
+            Message::PickRandomImage => {
+                let mut rng = rand::thread_rng();
+                if let Some(id) = self.images.iter().map(|image| image.id).choose(&mut rng) {
+                    self.select_image(id)
                 } else {
                     Command::none()
                 }
@@ -229,7 +246,21 @@ impl Application for RegolithWallpaperApp {
             content = content.push(edit_path_btn);
 
             if let Some(image) = &self.current_wallpaper {
-                content = content.push(column!(text("Current wallpaper"), image.view()).spacing(4));
+                let pick_random_btn = button(
+                    container(text("Pick random").size(14))
+                        .width(150)
+                        .center_x(),
+                )
+                .padding([2, 4])
+                .on_press(Message::PickRandomImage);
+                content = content.push(
+                    column!(
+                        text("Current wallpaper"),
+                        image.view(),
+                        row!(horizontal_space(30), pick_random_btn)
+                    )
+                    .spacing(4),
+                );
             }
             if let Some(e) = &self.current_wallpaper_error {
                 content = content.push(text(e));
