@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/renato145/regolith-wallpaper/compare/v0.1.0...v0.2.0) (2023-12-18)
+
+
+### Features
+
+* add cli commands ([31f397a](https://github.com/renato145/regolith-wallpaper/commit/31f397ad5c933e4242e76c614fe30ca1f3c29b59))
+
 ## 0.1.0 (2023-12-17)
 
 
