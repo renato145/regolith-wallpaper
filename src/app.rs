@@ -303,7 +303,7 @@ async fn save_config(config: Configuration) -> Result<()> {
 }
 
 #[tracing::instrument]
-async fn load_image_files(path: PathBuf) -> Result<Vec<PathBuf>> {
+pub async fn load_image_files(path: PathBuf) -> Result<Vec<PathBuf>> {
     tracing::info!("Loading files...");
     let image_files = ReadDirStream::new(
         read_dir(path)
@@ -356,7 +356,7 @@ async fn load_regolith_config() -> Result<PathBuf> {
 
 /// Sets the path on the current regolith config file, if success returns the
 /// setted image path
-async fn set_wallpaper_on_config(path: PathBuf) -> Result<PathBuf> {
+pub async fn set_wallpaper_on_config(path: PathBuf) -> Result<PathBuf> {
     let content = read_regolith_config().await?;
     let mut lines = content.lines();
     let mut new_content = String::new();

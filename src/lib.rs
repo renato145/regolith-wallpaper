@@ -1,4 +1,5 @@
 mod app;
+pub mod commands;
 mod configuration;
 mod error;
 mod status_bar;
